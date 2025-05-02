@@ -1,5 +1,5 @@
 // src/components/session/BodyDoublingSession.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
@@ -26,45 +26,65 @@ import {
   FormControlLabel,
   Switch,
   Slider,
-  Tooltip
+  Tooltip,
+  useMediaQuery
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import RobotAvatar from '../avatar/RobotAvatar';
 import { db } from '../../firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import MicIcon from '@mui/icons-material/Mic';
+import SendIcon from '@mui/icons-material/Send';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import ChatIcon from '@mui/icons-material/Chat';
 import CloseIcon from '@mui/icons-material/Close';
 import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
+import TimerIcon from '@mui/icons-material/Timer';
 import { motion } from 'framer-motion';
 
 // Import AI service
 import { generateAIResponse } from '../../services/aiService';
 
+// Simple notification sound
+const notificationSound = new Audio('/sounds/notification.mp3');
+const completionSound = new Audio('/sounds/completion.mp3');
+
 const BodyDoublingSession = () => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { currentUser, userProfile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Get query parameters
+  const queryParams = new URLSearchParams(location.search);
+  const sessionType = queryParams.get('type') || 'body-double';
+  const initialTask = queryParams.get('task') || '';
+  
   const [sessionId, setSessionId] = useState(null);
   const [timer, setTimer] = useState(25 * 60); // Default: 25 minutes in seconds
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState(null);
-  const [currentTask, setCurrentTask] = useState('');
+  const [currentTask, setCurrentTask] = useState(initialTask);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [robotMood, setRobotMood] = useState('focused');
+  const [robotMessage, setRobotMessage] = useState('');
+  const [showRobotMessage, setShowRobotMessage] = useState(false);
   const [showReward, setShowReward] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [confirmEndDialog, setConfirmEndDialog] = useState(false);
+  const [sessionComplete, setSessionComplete] = useState(false);
   const [sessionSettings, setSessionSettings] = useState({
     duration: 25,
     encouragementFrequency: 5, // minutes
@@ -75,6 +95,80 @@ const BodyDoublingSession = () => {
   const messageEndRef = useRef(null);
   const encouragementTimer = useRef(null);
   const timerRef = useRef(null);
+  
+  // Load existing session or initialize for a specific task
+  useEffect(() => {
+    const initializeSessionData = async () => {
+      const sessionIdFromUrl = location.pathname.split('/').pop();
+      
+      if (sessionIdFromUrl && sessionIdFromUrl !== 'new') {
+        try {
+          // Load existing session
+          const sessionDoc = await getDoc(doc(db, 'sessions', sessionIdFromUrl));
+          
+          if (sessionDoc.exists() && sessionDoc.data().userId === currentUser.uid) {
+            const sessionData = sessionDoc.data();
+            
+            setSessionId(sessionIdFromUrl);
+            setCurrentTask(sessionData.taskDescription || '');
+            
+            // Calculate remaining time if session is in progress
+            if (sessionData.status === 'in-progress') {
+              const startTime = sessionData.startTime.toDate();
+              const plannedEndTime = new Date(startTime.getTime() + (sessionData.plannedDurationMinutes * 60 * 1000));
+              const currentTime = new Date();
+              
+              if (plannedEndTime > currentTime) {
+                const remainingSeconds = Math.round((plannedEndTime - currentTime) / 1000);
+                setTimer(remainingSeconds);
+              }
+              
+              setSessionStartTime(startTime);
+              setIsRunning(true);
+              setSessionSettings(prev => ({
+                ...prev,
+                duration: sessionData.plannedDurationMinutes
+              }));
+            }
+          }
+        } catch (error) {
+          console.error("Error loading session:", error);
+        }
+      } else {
+        // Set duration based on session type
+        let duration = 25; // default
+        
+        if (sessionType === 'pomodoro') {
+          duration = 25; // standard pomodoro
+        } else if (sessionType === 'deep-work') {
+          duration = 90; // longer session
+        } else if (sessionType === 'task-breakdown') {
+          duration = 15; // shorter session
+        }
+        
+        // Initialize with user preferences if available
+        if (userProfile?.preferences) {
+          setSessionSettings(prev => ({
+            ...prev,
+            duration: duration,
+            soundEnabled: userProfile.preferences.soundEnabled !== false
+          }));
+        } else {
+          setSessionSettings(prev => ({
+            ...prev,
+            duration: duration
+          }));
+        }
+        
+        // Set timer based on session type
+        setTimer(duration * 60);
+      }
+    };
+    
+    if (currentUser) {
+      initializeSessionData();
+    }
+  }, [currentUser, location.pathname, location.search, sessionType, initialTask, userProfile]);
   
   // Array of encouraging messages based on user's preferred style
   const encouragingMessages = {
@@ -117,31 +211,26 @@ const BodyDoublingSession = () => {
     "Look at you being productive! Reward time! ✨"
   ];
   
-  // Initialize session
-  useEffect(() => {
-    // Initialize with user preferences if available
-    if (userProfile?.preferences) {
-      setSessionSettings(prev => ({
-        ...prev,
-        duration: userProfile.preferences.sessionDuration || 25,
-        soundEnabled: userProfile.preferences.soundEnabled !== false
-      }));
-      
-      // Set timer based on user preference
-      setTimer((userProfile.preferences.sessionDuration || 25) * 60);
-    }
-    
-    // Cleanup function to clear all timers
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (encouragementTimer.current) clearInterval(encouragementTimer.current);
-    };
-  }, [userProfile]);
-  
   // Scroll to bottom of messages
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Get session type display name
+  const getSessionTypeName = () => {
+    switch (sessionType) {
+      case 'pomodoro':
+        return 'Pomodoro Session';
+      case 'body-double':
+        return 'Body Doubling';
+      case 'deep-work':
+        return 'Deep Work Session';
+      case 'task-breakdown':
+        return 'Task Breakdown Session';
+      default:
+        return 'Focus Session';
+    }
+  };
   
   // Timer functionality
   useEffect(() => {
@@ -204,7 +293,7 @@ const BodyDoublingSession = () => {
         startTime: serverTimestamp(),
         plannedDurationMinutes: sessionSettings.duration,
         taskDescription: currentTask.trim() || 'Focus Session',
-        type: 'body-double',
+        type: sessionType,
         status: 'in-progress'
       });
       
@@ -233,9 +322,15 @@ const BodyDoublingSession = () => {
         }
       ]);
       
-      // Set robot mood
+      // Update robot mood and message
       setRobotMood('encouraging');
-      setTimeout(() => setRobotMood('focused'), 3000);
+      setRobotMessage(welcomeMessage);
+      setShowRobotMessage(true);
+      
+      setTimeout(() => {
+        setRobotMood('focused');
+        setShowRobotMessage(false);
+      }, 4000);
       
     } catch (error) {
       console.error("Error starting session:", error);
@@ -261,6 +356,11 @@ const BodyDoublingSession = () => {
         timestamp: new Date()
       }
     ]);
+    
+    // Show robot message
+    setRobotMessage(message);
+    setShowRobotMessage(true);
+    setTimeout(() => setShowRobotMessage(false), 3000);
   };
   
   // End session
@@ -297,8 +397,28 @@ const BodyDoublingSession = () => {
         }
       ]);
       
-      // Set robot mood
+      // Play sound if enabled
+      if (sessionSettings.soundEnabled && !isMuted) {
+        if (completed) {
+          completionSound.play().catch(err => console.error("Error playing sound:", err));
+        } else {
+          notificationSound.play().catch(err => console.error("Error playing sound:", err));
+        }
+      }
+      
+      // Set robot mood and message
       setRobotMood('happy');
+      setRobotMessage(message);
+      setShowRobotMessage(true);
+      
+      if (completed) {
+        setSessionComplete(true);
+      } else {
+        // Navigate back to dashboard after a short delay
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 3000);
+      }
       
     } catch (error) {
       console.error("Error ending session:", error);
@@ -306,11 +426,20 @@ const BodyDoublingSession = () => {
   };
   
   // Handle session completion
-  const handleSessionComplete = () => {
+  const handleSessionComplete = useCallback(() => {
+    // Play completion sound if enabled
+    if (sessionSettings.soundEnabled && !isMuted) {
+      completionSound.play().catch(err => console.error("Error playing sound:", err));
+    }
+    
     setIsRunning(false);
     setShowReward(true);
     endSession(true);
-  };
+    
+    setTimeout(() => {
+      setShowReward(false);
+    }, 4000);
+  }, [sessionSettings.soundEnabled, isMuted]);
   
   // Send an encouraging message
   const sendEncouragement = () => {
@@ -331,17 +460,28 @@ const BodyDoublingSession = () => {
       }
     ]);
     
+    // Play notification sound if enabled
+    if (sessionSettings.soundEnabled && !isMuted) {
+      notificationSound.play().catch(err => console.error("Error playing sound:", err));
+    }
+    
     // Show animated reward
     setShowReward(true);
     setTimeout(() => setShowReward(false), 3000);
     
-    // Change robot mood briefly
+    // Change robot mood and message briefly
     setRobotMood('encouraging');
-    setTimeout(() => setRobotMood('focused'), 3000);
+    setRobotMessage(randomMessage);
+    setShowRobotMessage(true);
+    
+    setTimeout(() => {
+      setRobotMood('focused');
+      setShowRobotMessage(false);
+    }, 4000);
   };
   
   // Send user message
-  const sendMessage = async (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     
@@ -360,22 +500,33 @@ const BodyDoublingSession = () => {
     setRobotMood('thinking');
     
     try {
-      // Get AI response (this would use your actual AI service)
+      // Get AI response
       const aiResponse = await generateAIResponse(newMessage.trim(), userProfile);
       
       // Add AI response
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now(),
-          sender: 'ai',
-          text: aiResponse,
-          timestamp: new Date()
-        }
-      ]);
+      const aiMessage = {
+        id: Date.now(),
+        sender: 'ai',
+        text: aiResponse,
+        timestamp: new Date()
+      };
       
-      // Reset robot mood
-      setRobotMood('focused');
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Play notification sound if enabled
+      if (sessionSettings.soundEnabled && !isMuted) {
+        notificationSound.play().catch(err => console.error("Error playing sound:", err));
+      }
+      
+      // Show robot message
+      setRobotMessage(aiResponse);
+      setShowRobotMessage(true);
+      
+      // Reset robot mood after a delay
+      setTimeout(() => {
+        setRobotMood('focused');
+        setShowRobotMessage(false);
+      }, 4000);
       
     } catch (error) {
       console.error("Error getting AI response:", error);
@@ -414,7 +565,12 @@ const BodyDoublingSession = () => {
     <Card variant="outlined" sx={{ maxWidth: 600, mx: 'auto', mt: 4 }}>
       <CardContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-          <RobotAvatar mood="idle" size={120} />
+          <RobotAvatar 
+            mood="idle" 
+            size={120} 
+            showMessage={true} 
+            message={`Ready for a ${getSessionTypeName()}?`}
+          />
           <Typography variant="h5" sx={{ mt: 2 }}>
             Ready to Focus Together?
           </Typography>
@@ -518,12 +674,22 @@ const BodyDoublingSession = () => {
         </Box>
         
         <Box sx={{ position: 'relative', zIndex: 1, width: '100%' }}>
+          {/* Session type badge */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            <Chip 
+              icon={<TimerIcon fontSize="small" />} 
+              label={getSessionTypeName()} 
+              color="primary" 
+              variant="outlined"
+            />
+          </Box>
+          
           {/* Timer */}
-          <Box sx={{ textAlign: 'center', mb: 4, mt: 2 }}>
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
             <Typography 
               variant="h1" 
               sx={{ 
-                fontSize: '5rem', 
+                fontSize: { xs: '4rem', sm: '5rem' }, 
                 fontWeight: 'bold',
                 color: isPaused ? theme.palette.text.secondary : theme.palette.primary.main
               }}
@@ -546,7 +712,9 @@ const BodyDoublingSession = () => {
           >
             <RobotAvatar 
               mood={robotMood} 
-              size={180} 
+              size={isMobile ? 120 : 180} 
+              showMessage={showRobotMessage}
+              message={robotMessage}
             />
             
             {/* Celebration animation */}
@@ -581,6 +749,7 @@ const BodyDoublingSession = () => {
               color={isPaused ? "primary" : "inherit"}
               onClick={togglePause}
               startIcon={isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+              disabled={!isRunning}
             >
               {isPaused ? 'Resume' : 'Pause'}
             </Button>
@@ -590,6 +759,7 @@ const BodyDoublingSession = () => {
               color="error"
               onClick={() => setConfirmEndDialog(true)}
               startIcon={<StopIcon />}
+              disabled={!isRunning}
             >
               End Session
             </Button>
@@ -685,7 +855,7 @@ const BodyDoublingSession = () => {
           </Box>
           
           <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-            <form onSubmit={sendMessage}>
+            <form onSubmit={handleSendMessage}>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   fullWidth
@@ -695,7 +865,7 @@ const BodyDoublingSession = () => {
                   onChange={(e) => setNewMessage(e.target.value)}
                 />
                 <IconButton color="primary" type="submit">
-                  <MicIcon />
+                  <SendIcon />
                 </IconButton>
               </Box>
             </form>
@@ -752,15 +922,12 @@ const BodyDoublingSession = () => {
               <Slider
                 value={sessionSettings.encouragementFrequency}
                 onChange={(e, value) => handleSettingsChange('encouragementFrequency', value)}
+                aria-labelledby="encouragement-slider"
+                valueLabelDisplay="auto"
+                step={1}
+                marks
                 min={1}
                 max={15}
-                step={1}
-                marks={[
-                  { value: 3, label: '3m' },
-                  { value: 5, label: '5m' },
-                  { value: 10, label: '10m' }
-                ]}
-                aria-labelledby="encouragement-slider"
               />
             </Box>
           </ListItem>
@@ -776,8 +943,6 @@ const BodyDoublingSession = () => {
               label="Enable Sounds"
             />
           </ListItem>
-          
-          {/* TODO: Add background sound options when implemented */}
         </List>
       </Drawer>
       
@@ -859,6 +1024,7 @@ const BodyDoublingSession = () => {
               setSessionId(null);
               setMessages([]);
               setRobotMood('idle');
+              setSessionComplete(false);
             }}
           >
             New Session
@@ -866,10 +1032,7 @@ const BodyDoublingSession = () => {
           
           <Button
             variant="contained"
-            onClick={() => {
-              // Navigate to dashboard (you would implement with react-router)
-              window.location.href = '/dashboard';
-            }}
+            onClick={() => navigate('/dashboard')}
           >
             Dashboard
           </Button>
@@ -880,9 +1043,9 @@ const BodyDoublingSession = () => {
   
   return (
     <Box sx={{ p: 2, minHeight: '100vh' }}>
-      {!isRunning && timer === sessionSettings.duration * 60 && renderSessionSetup()}
+      {!isRunning && !sessionComplete && renderSessionSetup()}
       {isRunning && renderActiveSession()}
-      {!isRunning && timer === 0 && renderSessionCompleted()}
+      {sessionComplete && renderSessionCompleted()}
     </Box>
   );
 };

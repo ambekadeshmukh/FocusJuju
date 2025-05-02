@@ -1,13 +1,13 @@
 # FocusJuju
 
 <div align="center">
-  <img src="src/assets/images/logo.svg" alt="HelloJuju Logo" width="200" />
+  <img src="src/assets/images/logo.svg" alt="FocusJuju Logo" width="200" />
   <p><i>Your AI accountability buddy for better focus and productivity</i></p>
 </div>
 
 ## 🌟 Overview
 
-HelloJuju is an AI-powered accountability buddy designed to help you stay focused and productive. Drawing inspiration from the concept of "body doubling" (working alongside someone to maintain focus), HelloJuju creates a supportive, virtual presence that adapts to your mood and needs.
+FocusJuju is an AI-powered accountability buddy designed to help you stay focused and productive. Drawing inspiration from the concept of "body doubling" (working alongside someone to maintain focus), FocusJuju creates a supportive, virtual presence that adapts to your mood and needs.
 
 ### 🧠 Key Features
 

@@ -1,5 +1,5 @@
 // src/components/avatar/RobotAvatar.jsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import styled from 'styled-components';
 
@@ -72,6 +72,30 @@ const GlowCircle = styled(motion.div)`
   z-index: -1;
 `;
 
+// Add speech bubble for encouragement messages
+const SpeechBubble = styled(motion.div)`
+  position: absolute;
+  top: -30%;
+  right: -40%;
+  background-color: white;
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  font-size: ${props => props.size / 14}px;
+  max-width: 150%;
+  z-index: 10;
+  
+  &:after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 20%;
+    border-width: 10px 10px 0;
+    border-style: solid;
+    border-color: white transparent;
+  }
+`;
+
 const moods = {
   happy: {
     head: { scale: 1.05 },
@@ -105,10 +129,24 @@ const moods = {
   }
 };
 
-const RobotAvatar = ({ mood = 'idle', size = 200, className }) => {
-  const [blinking, setBlinking] = React.useState(false);
+// Encouraging messages for speech bubbles
+const encouragingMessages = [
+  "You're doing great!",
+  "Keep going!",
+  "You've got this!",
+  "Focus on progress!",
+  "Small steps matter!",
+  "I believe in you!",
+  "You're making progress!"
+];
+
+const RobotAvatar = ({ mood = 'idle', size = 200, className, message = '', showMessage = false }) => {
+  const [blinking, setBlinking] = useState(false);
+  const [encouragement, setEncouragement] = useState('');
+  const [showBubble, setShowBubble] = useState(false);
   
-  React.useEffect(() => {
+  // Handle blinking animation
+  useEffect(() => {
     const blinkInterval = setInterval(() => {
       setBlinking(true);
       setTimeout(() => setBlinking(false), 200);
@@ -116,6 +154,34 @@ const RobotAvatar = ({ mood = 'idle', size = 200, className }) => {
     
     return () => clearInterval(blinkInterval);
   }, []);
+
+  // Show random encouragement for encouraging mood
+  useEffect(() => {
+    if (mood === 'encouraging') {
+      const randomMessage = encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)];
+      setEncouragement(message || randomMessage);
+      setShowBubble(true);
+      
+      // Hide bubble after a few seconds
+      const timer = setTimeout(() => {
+        setShowBubble(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    } else if (showMessage && message) {
+      setEncouragement(message);
+      setShowBubble(true);
+      
+      // Hide bubble after a few seconds
+      const timer = setTimeout(() => {
+        setShowBubble(false);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    } else {
+      setShowBubble(false);
+    }
+  }, [mood, message, showMessage]);
 
   const currentMood = moods[mood] || moods.idle;
   const isHappy = ['happy', 'encouraging'].includes(mood);
@@ -132,6 +198,17 @@ const RobotAvatar = ({ mood = 'idle', size = 200, className }) => {
         animate={currentMood.glow}
         transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
       />
+      
+      {(showBubble && encouragement) && (
+        <SpeechBubble
+          size={size}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+        >
+          {encouragement}
+        </SpeechBubble>
+      )}
       
       <Head
         animate={currentMood.head}

@@ -29,7 +29,9 @@ import {
   MenuItem,
   Slider,
   Tooltip,
-  Paper
+  Paper,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -41,6 +43,7 @@ import FlagIcon from '@mui/icons-material/Flag';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import RobotAvatar from '../avatar/RobotAvatar';
@@ -56,22 +59,29 @@ import {
   updateDoc, 
   deleteDoc, 
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  orderBy,
+  limit
 } from 'firebase/firestore';
+import { motion } from 'framer-motion';
 
 const MicroGoalSetting = () => {
-  const { currentUser } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
   
   const [mainTask, setMainTask] = useState('');
   const [microGoals, setMicroGoals] = useState([]);
-  const [savedMicroGoals, setSavedMicroGoals] = useState([]);
+  const [savedMicroGoals, setSavedMicroGoals] = useState({});
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [currentGoal, setCurrentGoal] = useState(null);
+  const [isFirstVisit, setIsFirstVisit] = useState(true);
+  const [showTips, setShowTips] = useState(true);
   
   // New goal form
   const [newGoal, setNewGoal] = useState({
@@ -88,31 +98,58 @@ const MicroGoalSetting = () => {
       
       setLoading(true);
       try {
-        const microGoalsQuery = query(
+        // Fetch parent tasks first (tasks with micro-goals)
+        const parentTasksQuery = query(
           collection(db, 'tasks'),
           where('userId', '==', currentUser.uid),
-          where('isPartOfLargerTask', '==', true)
+          where('isLargerTask', '==', true),
+          orderBy('createdAt', 'desc'),
+          limit(10) // Limit to 10 most recent parent tasks
         );
         
-        const querySnapshot = await getDocs(microGoalsQuery);
-        const goals = [];
+        const parentTasksSnapshot = await getDocs(parentTasksQuery);
+        const parentTasks = {};
         
-        querySnapshot.forEach((doc) => {
-          goals.push({
+        // Process parent tasks
+        parentTasksSnapshot.forEach((doc) => {
+          parentTasks[doc.id] = {
+            ...doc.data(),
             id: doc.id,
-            ...doc.data()
-          });
+            microGoals: []
+          };
         });
         
-        // Group by parentTaskId
-        const groupedGoals = goals.reduce((acc, goal) => {
-          const parentId = goal.parentTaskId || 'ungrouped';
-          if (!acc[parentId]) {
-            acc[parentId] = [];
+        // If there are parent tasks, fetch their micro-goals
+        if (Object.keys(parentTasks).length > 0) {
+          const microGoalsQuery = query(
+            collection(db, 'tasks'),
+            where('userId', '==', currentUser.uid),
+            where('isPartOfLargerTask', '==', true),
+            where('parentTaskId', 'in', Object.keys(parentTasks))
+          );
+          
+          const microGoalsSnapshot = await getDocs(microGoalsQuery);
+          
+          // Add micro-goals to their parent tasks
+          microGoalsSnapshot.forEach((doc) => {
+            const microGoal = {
+              id: doc.id,
+              ...doc.data()
+            };
+            
+            if (parentTasks[microGoal.parentTaskId]) {
+              parentTasks[microGoal.parentTaskId].microGoals.push(microGoal);
+            }
+          });
+        }
+        
+        // Convert to the format expected by the component
+        const groupedGoals = {};
+        Object.keys(parentTasks).forEach(taskId => {
+          if (parentTasks[taskId].microGoals.length > 0) {
+            groupedGoals[taskId] = parentTasks[taskId].microGoals;
           }
-          acc[parentId].push(goal);
-          return acc;
-        }, {});
+        });
         
         setSavedMicroGoals(groupedGoals);
       } catch (error) {
@@ -124,6 +161,16 @@ const MicroGoalSetting = () => {
     };
     
     fetchMicroGoals();
+    
+    // Check if this is the first visit to this page
+    const hasVisitedMicroGoals = localStorage.getItem('hasVisitedMicroGoals');
+    if (!hasVisitedMicroGoals) {
+      setIsFirstVisit(true);
+      localStorage.setItem('hasVisitedMicroGoals', 'true');
+    } else {
+      setIsFirstVisit(false);
+      setShowTips(false);
+    }
   }, [currentUser]);
   
   // Generate micro-goals from the main task
@@ -137,7 +184,7 @@ const MicroGoalSetting = () => {
     setError('');
     
     try {
-      const generatedGoals = await generateMicroGoals(mainTask, {});
+      const generatedGoals = await generateMicroGoals(mainTask, userProfile);
       setMicroGoals(generatedGoals);
     } catch (error) {
       console.error("Error generating micro-goals:", error);
@@ -192,12 +239,32 @@ const MicroGoalSetting = () => {
       // Show success message
       setSuccess("Micro-goals saved successfully!");
       
-      // Reset the form
-      setMainTask('');
-      setMicroGoals([]);
-      
-      // Refresh the saved micro-goals
-      // (In a real app, you'd update the state with the new data instead of fetching again)
+      // Reset the form after a short delay
+      setTimeout(() => {
+        setMainTask('');
+        setMicroGoals([]);
+        setSuccess('');
+        
+        // Refresh the saved micro-goals
+        const fetchMicroGoals = async () => {
+          // Add the newly created micro-goals to the state
+          const newGoals = {};
+          newGoals[parentTaskRef.id] = microGoals.map((goal, index) => ({
+            ...goal,
+            id: `temp-${index}`, // Temporary ID until we refresh
+            parentTaskId: parentTaskRef.id,
+            parentTaskTitle: mainTask,
+            completed: false
+          }));
+          
+          setSavedMicroGoals(prev => ({
+            ...prev,
+            ...newGoals
+          }));
+        };
+        
+        fetchMicroGoals();
+      }, 2000);
       
     } catch (error) {
       console.error("Error saving micro-goals:", error);
@@ -223,6 +290,8 @@ const MicroGoalSetting = () => {
       estimatedMinutes: 15,
       priority: 'medium'
     });
+    
+    setShowEditDialog(false);
   };
   
   // Edit a micro-goal
@@ -279,9 +348,22 @@ const MicroGoalSetting = () => {
         completedAt: !completed ? serverTimestamp() : null
       });
       
-      // In a real app, you'd update the state with the updated data
-      // For simplicity, we're not doing that here
-      
+      // Update the state locally
+      setSavedMicroGoals(prev => {
+        const newState = { ...prev };
+        
+        // Find the goal and update its completed status
+        Object.keys(newState).forEach(taskId => {
+          newState[taskId] = newState[taskId].map(goal => {
+            if (goal.id === goalId) {
+              return { ...goal, completed: !completed };
+            }
+            return goal;
+          });
+        });
+        
+        return newState;
+      });
     } catch (error) {
       console.error("Error updating micro-goal:", error);
     }
@@ -378,7 +460,7 @@ const MicroGoalSetting = () => {
       <DialogActions>
         <Button onClick={() => setShowEditDialog(false)}>Cancel</Button>
         <Button 
-          onClick={currentGoal ? handleSaveEditedMicroGoal : handleAddMicroGoal} 
+          onClick={currentGoal ? handleSaveEditedMicroGoal : handleAddMicroGoal}
           variant="contained"
         >
           {currentGoal ? 'Save Changes' : 'Add Goal'}
@@ -396,6 +478,52 @@ const MicroGoalSetting = () => {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
         Break down overwhelming tasks into bite-sized, achievable goals.
       </Typography>
+      
+      {/* Tips for first-time visitors */}
+      {showTips && (
+        <Collapse in={showTips}>
+          <Paper 
+            elevation={0} 
+            sx={{ 
+              p: 3, 
+              mb: 4, 
+              backgroundColor: theme.palette.primary.light,
+              borderRadius: 2
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+              <LightbulbIcon sx={{ color: theme.palette.primary.dark, mr: 2, mt: 0.5 }} />
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Tips for Effective Micro-Goals
+                </Typography>
+                <Typography variant="body2" paragraph>
+                  Breaking down tasks makes them less overwhelming and more achievable. Here's how to create effective micro-goals:
+                </Typography>
+                <Box component="ul" sx={{ mt: 0, pl: 2 }}>
+                  <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                    Make each goal small enough to complete in 15-30 minutes
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                    Be specific about what success looks like
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                    Focus on actions, not outcomes
+                  </Typography>
+                  <Typography component="li" variant="body2">
+                    Start with the easiest part to build momentum
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button size="small" onClick={() => setShowTips(false)}>
+                    Got it
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </Collapse>
+      )}
       
       {error && (
         <Collapse in={!!error}>
@@ -447,11 +575,26 @@ const MicroGoalSetting = () => {
             rows={2}
           />
           
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: 2
+          }}>
             <Button
               variant="outlined"
-              onClick={() => setShowEditDialog(true)}
+              onClick={() => {
+                setCurrentGoal(null);
+                setNewGoal({
+                  title: '',
+                  description: '',
+                  estimatedMinutes: 15,
+                  priority: 'medium'
+                });
+                setShowEditDialog(true);
+              }}
               startIcon={<AddIcon />}
+              fullWidth={isMobile}
             >
               Add Goal Manually
             </Button>
@@ -459,8 +602,9 @@ const MicroGoalSetting = () => {
             <Button
               variant="contained"
               onClick={handleGenerateMicroGoals}
-              startIcon={generating ? <CircularProgress size={20} /> : <AutorenewIcon />}
+              startIcon={generating ? <CircularProgress size={20} color="inherit" /> : <AutorenewIcon />}
               disabled={generating || !mainTask.trim()}
+              fullWidth={isMobile}
             >
               {generating ? 'Generating...' : 'Generate Micro-Goals'}
             </Button>
@@ -588,6 +732,7 @@ const MicroGoalSetting = () => {
                             variant="outlined"
                             startIcon={<PlayArrowIcon />}
                             onClick={() => handleStartSession(goal.title)}
+                            disabled={goal.completed}
                           >
                             Start
                           </Button>

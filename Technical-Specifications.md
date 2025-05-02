@@ -1,8 +1,8 @@
-# HelloJuju Technical Specifications
+# FocusJuju Technical Specifications
 
 ## Architecture Overview
 
-HelloJuju is built as a modern single-page web application with serverless backend architecture using Firebase. The application follows a component-based architecture with separation of concerns between UI components, services, and state management.
+FocusJuju is built as a modern single-page web application with serverless backend architecture using Firebase. The application follows a component-based architecture with separation of concerns between UI components, services, and state management.
 
 ### System Architecture Diagram
 
