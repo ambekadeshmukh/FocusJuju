@@ -1,31 +1,70 @@
 // src/components/common/Footer.jsx
 import React from 'react';
-import { Box, Container, Typography, Link, Divider, useTheme } from '@mui/material';
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  Link, 
+  Divider, 
+  Grid, 
+  IconButton, 
+  useTheme, 
+  useMediaQuery 
+} from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import GitHubIcon from '@mui/icons-material/GitHub';
+import TwitterIcon from '@mui/icons-material/Twitter';
+import LinkedInIcon from '@mui/icons-material/LinkedIn';
 
 const Footer = () => {
   const theme = useTheme();
-  const year = new Date().getFullYear();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const currentYear = new Date().getFullYear();
+  
+  const footerSections = [
+    {
+      title: 'Features',
+      links: [
+        { name: 'Body Doubling', path: '/features/body-doubling' },
+        { name: 'Micro-Goals', path: '/features/micro-goals' },
+        { name: 'Focus Timer', path: '/features/focus-timer' },
+        { name: 'Progress Tracking', path: '/features/progress-tracking' }
+      ]
+    },
+    {
+      title: 'Resources',
+      links: [
+        { name: 'Blog', path: '/blog' },
+        { name: 'Tips & Guides', path: '/guides' },
+        { name: 'ADHD Resources', path: '/resources' },
+        { name: 'Support', path: '/support' }
+      ]
+    },
+    {
+      title: 'Company',
+      links: [
+        { name: 'About Us', path: '/about' },
+        { name: 'Contact', path: '/contact' },
+        { name: 'Privacy Policy', path: '/privacy' },
+        { name: 'Terms of Service', path: '/terms' }
+      ]
+    }
+  ];
   
   return (
     <Box 
       component="footer" 
       sx={{ 
-        py: 3, 
+        py: 6, 
         px: 2, 
         mt: 'auto',
-        backgroundColor: theme.palette.background.paper
+        backgroundColor: theme.palette.mode === 'light' ? theme.palette.grey[100] : theme.palette.grey[900]
       }}
     >
-      <Divider sx={{ mb: 3 }} />
       <Container maxWidth="lg">
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between',
-          alignItems: { xs: 'center', sm: 'flex-start' }
-        }}>
-          <Box sx={{ mb: { xs: 2, sm: 0 }, textAlign: { xs: 'center', sm: 'left' } }}>
+        <Grid container spacing={4}>
+          {/* Logo and Tagline */}
+          <Grid item xs={12} md={4}>
             <Typography 
               variant="h6" 
               component={RouterLink} 
@@ -41,50 +80,149 @@ const Footer = () => {
             >
               FocusJuju
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Your friendly AI accountability buddy
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Your friendly AI accountability buddy for better focus and productivity.
             </Typography>
-          </Box>
-          
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' }, 
-            gap: 3,
-            textAlign: { xs: 'center', sm: 'left' }
-          }}>
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Resources
-              </Typography>
-              <Link component={RouterLink} to="/about" color="inherit" display="block" sx={{ mb: 0.5 }}>
-                About
-              </Link>
-              <Link component={RouterLink} to="/blog" color="inherit" display="block" sx={{ mb: 0.5 }}>
-                Blog
-              </Link>
-              <Link component={RouterLink} to="/help" color="inherit" display="block">
-                Help Center
-              </Link>
-            </Box>
             
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Legal
-              </Typography>
-              <Link component={RouterLink} to="/privacy" color="inherit" display="block" sx={{ mb: 0.5 }}>
-                Privacy Policy
-              </Link>
-              <Link component={RouterLink} to="/terms" color="inherit" display="block">
-                Terms of Service
-              </Link>
+            {/* Social Links */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton 
+                component="a" 
+                href="https://github.com/yourusername/focusjuju" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="GitHub"
+                size="small"
+              >
+                <GitHubIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                component="a" 
+                href="https://twitter.com/focusjuju" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="Twitter"
+                size="small"
+              >
+                <TwitterIcon fontSize="small" />
+              </IconButton>
+              <IconButton 
+                component="a" 
+                href="https://linkedin.com/company/focusjuju" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="LinkedIn"
+                size="small"
+              >
+                <LinkedInIcon fontSize="small" />
+              </IconButton>
             </Box>
-          </Box>
-        </Box>
+          </Grid>
+          
+          {/* Footer Sections */}
+          {footerSections.map((section) => (
+            <Grid item xs={6} md={2} sm={4} key={section.title}>
+              <Typography 
+                variant="subtitle2" 
+                color="text.primary" 
+                sx={{ mb: 2, fontWeight: 'bold' }}
+              >
+                {section.title}
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {section.links.map((link) => (
+                  <Link 
+                    key={link.name} 
+                    component={RouterLink} 
+                    to={link.path} 
+                    color="text.secondary"
+                    underline="hover"
+                    sx={{ 
+                      fontSize: '0.875rem',
+                      '&:hover': {
+                        color: 'primary.main'
+                      }
+                    }}
+                  >
+                    {link.name}
+                  </Link>
+                ))}
+              </Box>
+            </Grid>
+          ))}
+          
+          {/* Newsletter Signup - Future feature */}
+          <Grid item xs={12} md={2}>
+            <Typography 
+              variant="subtitle2" 
+              color="text.primary" 
+              sx={{ mb: 2, fontWeight: 'bold' }}
+            >
+              Stay Updated
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Subscribe to our newsletter for productivity tips and updates!
+            </Typography>
+            <Link 
+              component={RouterLink} 
+              to="/subscribe" 
+              color="primary"
+              underline="hover"
+              sx={{ 
+                fontWeight: 'medium',
+                fontSize: '0.875rem'
+              }}
+            >
+              Subscribe →
+            </Link>
+          </Grid>
+        </Grid>
         
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            © {year} FocusJuju. All rights reserved.
+        <Divider sx={{ my: 4 }} />
+        
+        {/* Bottom Section */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'column' : 'row',
+            justifyContent: 'space-between',
+            alignItems: isMobile ? 'center' : 'flex-start',
+            gap: 2
+          }}
+        >
+          <Typography variant="body2" color="text.secondary" align={isMobile ? 'center' : 'left'}>
+            © {currentYear} FocusJuju. All rights reserved.
           </Typography>
+          
+          <Box sx={{ display: 'flex', gap: 3 }}>
+            <Link 
+              component={RouterLink} 
+              to="/privacy" 
+              color="text.secondary"
+              underline="hover"
+              sx={{ fontSize: '0.75rem' }}
+            >
+              Privacy Policy
+            </Link>
+            <Link 
+              component={RouterLink} 
+              to="/terms" 
+              color="text.secondary"
+              underline="hover"
+              sx={{ fontSize: '0.75rem' }}
+            >
+              Terms of Use
+            </Link>
+            <Link 
+              component={RouterLink} 
+              to="/cookies" 
+              color="text.secondary"
+              underline="hover"
+              sx={{ fontSize: '0.75rem' }}
+            >
+              Cookies
+            </Link>
+          </Box>
         </Box>
       </Container>
     </Box>

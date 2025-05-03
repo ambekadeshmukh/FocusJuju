@@ -1,0 +1,258 @@
+// firebase.json
+{
+    "hosting": {
+      "public": "build",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(js|css)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(jpg|jpeg|gif|png|svg|webp)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000"
+            }
+          ]
+        },
+        {
+          "source": "404.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=300"
+            }
+          ]
+        }
+      ]
+    },
+    "firestore": {
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    },
+    "storage": {
+      "rules": "storage.rules"
+    },
+    "emulators": {
+      "auth": {
+        "port": 9099
+      },
+      "firestore": {
+        "port": 8080
+      },
+      "hosting": {
+        "port": 5000
+      },
+      "storage": {
+        "port": 9199
+      },
+      "ui": {
+        "enabled": true
+      }
+    }
+  }
+  
+  // firestore.rules
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      // Common functions
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      
+      function isOwner(resource) {
+        return isSignedIn() && resource.data.userId == request.auth.uid;
+      }
+      
+      // Users collection rules
+      match /users/{userId} {
+        // Users can read and update their own profile
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        
+        // Allow creation with proper validation
+        allow create: if isSignedIn() && 
+                       request.auth.uid == userId &&
+                       request.resource.data.keys().hasAll(['name', 'email', 'createdAt']) &&
+                       request.resource.data.userId == request.auth.uid;
+      }
+      
+      // Tasks collection rules
+      match /tasks/{taskId} {
+        // Tasks can be read and written by the task owner
+        allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+        
+        // Allow creation with proper validation
+        allow create: if isSignedIn() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.keys().hasAny(['title', 'description']);
+      }
+      
+      // Sessions collection rules
+      match /sessions/{sessionId} {
+        // Sessions can be read and written by the session owner
+        allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+        
+        // Allow creation with proper validation
+        allow create: if isSignedIn() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['startTime', 'type']);
+      }
+      
+      // Moods collection rules
+      match /moods/{moodId} {
+        // Moods can be read and written by the mood owner
+        allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+        
+        // Allow creation with proper validation
+        allow create: if isSignedIn() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.keys().hasAny(['mood', 'energy', 'focus']);
+      }
+      
+      // Messages collection rules
+      match /messages/{messageId} {
+        // Messages can be read and written by the user involved in the session
+        allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+        
+        // Allow creation with proper validation
+        allow create: if isSignedIn() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['sessionId', 'sender', 'text']);
+      }
+    }
+  }
+  
+  // firestore.indexes.json
+  {
+    "indexes": [
+      {
+        "collectionGroup": "tasks",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "userId",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "completed",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "priority",
+            "order": "DESCENDING"
+          }
+        ]
+      },
+      {
+        "collectionGroup": "tasks",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "userId",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "completed",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "isPartOfLargerTask",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "createdAt",
+            "order": "DESCENDING"
+          }
+        ]
+      },
+      {
+        "collectionGroup": "tasks",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "userId",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "isPartOfLargerTask",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "parentTaskId",
+            "order": "ASCENDING"
+          }
+        ]
+      },
+      {
+        "collectionGroup": "sessions",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "userId",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "startTime",
+            "order": "DESCENDING"
+          }
+        ]
+      },
+      {
+        "collectionGroup": "messages",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "timestamp",
+            "order": "ASCENDING"
+          }
+        ]
+      },
+      {
+        "collectionGroup": "moods",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "userId",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "timestamp",
+            "order": "DESCENDING"
+          }
+        ]
+      }
+    ],
+    "fieldOverrides": []
+  }
+  
+  // storage.rules
+  rules_version = '2';
+  service firebase.storage {
+    match /b/{bucket}/o {
+      match /{allPaths=**} {
+        allow read, write: if request.auth != null && request.auth.uid == request.resource.metadata.userId;
+      }
+    }
+  }
