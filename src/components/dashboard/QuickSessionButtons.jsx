@@ -98,7 +98,4 @@ const QuickSessionButtons = ({ onStartSession }) => {
   );
 };
 
-export default QuickSessionButtons;="h4">
-                      {getTimeBasedGreeting()}, {userProfile?.name || currentUser.displayName}!
-                    </Typography>
-                    <Typography variant
+export default QuickSessionButtons;

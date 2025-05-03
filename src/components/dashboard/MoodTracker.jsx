@@ -1,4 +1,5 @@
 // src/components/dashboard/MoodTracker.jsx
+import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -9,7 +10,6 @@ import {
   Button,
   Chip
 } from '@mui/material';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';

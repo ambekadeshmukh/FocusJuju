@@ -9,11 +9,8 @@ import {
   Button,
   Container,
   CircularProgress,
-  Divider,
   Paper,
   useTheme,
-  useMediaQuery,
-  Collapse,
   Alert,
   Snackbar
 } from '@mui/material';
@@ -23,12 +20,12 @@ import { useAuth } from '../../context/AuthContext';
 import RobotAvatar from '../avatar/RobotAvatar';
 import MoodTracker from './MoodTracker';
 import TaskList from './TaskList';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import ProgressStats from './ProgressStats';
 import QuickSessionButtons from './QuickSessionButtons';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { generatePersonalizedAdvice } from '../../services/aiService';
-import TipsIcon from '@mui/icons-material/Tips';
 
 // Animation variants
 const containerVariants = {
@@ -56,14 +53,12 @@ const itemVariants = {
 
 const Dashboard = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { currentUser, userProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
   const [recentSessions, setRecentSessions] = useState([]);
   const [currentMood, setCurrentMood] = useState(null);
   const [personalizedAdvice, setPersonalizedAdvice] = useState(null);
-  const [refreshingData, setRefreshingData] = useState(false);
   const [error, setError] = useState('');
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -128,7 +123,6 @@ const Dashboard = () => {
   // Refresh dashboard data when mood is updated
   const handleMoodChange = async (mood) => {
     setCurrentMood(mood);
-    setRefreshingData(true);
     
     try {
       // Get updated advice based on new mood
@@ -147,8 +141,6 @@ const Dashboard = () => {
       setSnackbarMessage('Mood updated and recommendations refreshed');
     } catch (error) {
       console.error("Error refreshing advice:", error);
-    } finally {
-      setRefreshingData(false);
     }
   };
   
@@ -261,7 +253,7 @@ const Dashboard = () => {
                     }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-                      <TipsIcon sx={{ color: theme.palette.primary.dark, mr: 2, mt: 0.5 }} />
+                      <LightbulbIcon sx={{ color: theme.palette.primary.dark, mr: 2, mt: 0.5 }} />
                       <Box>
                         <Typography variant="h6" gutterBottom>
                           Today's Suggestions

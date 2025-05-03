@@ -1,5 +1,5 @@
 // src/components/auth/SignIn.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Button, 
   TextField, 
@@ -8,36 +8,136 @@ import {
   Box, 
   Grid, 
   Link,
-  Alert
+  Alert,
+  IconButton,
+  InputAdornment,
+  Container,
+  Divider,
+  CircularProgress,
+  FormHelperText
 } from '@mui/material';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../firebase';
-import { useNavigate } from 'react-router-dom';
-import RobotAvatar from '../avatar/RobotAvatar';
+import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { motion } from 'framer-motion';
+
+// Animation variants
+const formVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { 
+      type: 'spring',
+      stiffness: 100,
+      damping: 15
+    }
+  }
+};
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+  
+  const { signIn, authError, setAuthError } = useAuth();
   const navigate = useNavigate();
-
+  const location = useLocation();
+  
+  // Get redirect URL from location state
+  const from = location.state?.from?.pathname || '/dashboard';
+  
+  // Clear any previous auth errors when component mounts
+  useEffect(() => {
+    if (setAuthError) {
+      setAuthError('');
+    }
+  }, [setAuthError]);
+  
+  // Check if email has a valid format
+  const isEmailValid = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+  
+  // Validate form inputs
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!isEmailValid(email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
-
+    
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      setError('Failed to sign in. Please check your credentials.');
-      console.error(err);
+      const success = await signIn(email, password);
+      
+      if (success) {
+        // Save email in local storage if remember me is checked
+        if (rememberMe) {
+          localStorage.setItem('rememberedEmail', email);
+        } else {
+          localStorage.removeItem('rememberedEmail');
+        }
+        
+        // Redirect to dashboard or previous page
+        navigate(from, { replace: true });
+      }
+    } catch (error) {
+      console.error('Unexpected error during sign in:', error);
     } finally {
       setLoading(false);
     }
   };
-
+  
+  // Toggle password visibility
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword((prev) => !prev);
+  };
+  
+  // Handle input change
+  const handleInputChange = (e, setter) => {
+    setter(e.target.value);
+    
+    // Clear validation error for this field
+    if (validationErrors[e.target.name]) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [e.target.name]: ''
+      }));
+    }
+    
+    // Clear auth error when user starts typing
+    if (authError && setAuthError) {
+      setAuthError('');
+    }
+  };
+  
   return (
     <Grid container component="main" sx={{ height: '100vh' }}>
       <Grid
@@ -54,308 +154,129 @@ const SignIn = () => {
         }}
       />
       <Grid item xs={12} sm={8} md={5} component={Paper} elevation={6} square>
-        <Box
-          sx={{
-            my: 8,
-            mx: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <RobotAvatar mood="happy" size={120} />
-          <Typography component="h1" variant="h5" sx={{ mt: 2 }}>
-            Welcome to FocusJuju!
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Your friendly AI accountability buddy
-          </Typography>
-          {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
-          <Box component="form" noValidate onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="Email Address"
-              name="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Password"
-              type="password"
-              id="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
+        <Container maxWidth="sm">
+          <motion.div
+            variants={formVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            <Box
+              sx={{
+                my: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
             >
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Button>
-            <Grid container>
-              <Grid item>
-                <Link href="/signup" variant="body2">
-                  {"Don't have an account? Sign Up"}
-                </Link>
-              </Grid>
-            </Grid>
-          </Box>
-        </Box>
+              {/* You can add RobotAvatar here when available */}
+              <Typography component="h1" variant="h4" sx={{ mt: 2 }}>
+                Welcome Back!
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+                Sign in to continue with FocusJuju
+              </Typography>
+              
+              {authError && (
+                <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+                  {authError}
+                </Alert>
+              )}
+              
+              <Box component="form" noValidate onSubmit={handleSubmit} sx={{ width: '100%' }}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="email"
+                  label="Email Address"
+                  name="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={email}
+                  onChange={(e) => handleInputChange(e, setEmail)}
+                  error={!!validationErrors.email}
+                  helperText={validationErrors.email}
+                />
+                
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  name="password"
+                  label="Password"
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => handleInputChange(e, setPassword)}
+                  error={!!validationErrors.password}
+                  helperText={validationErrors.password}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={handleTogglePasswordVisibility}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', my: 2 }}>
+                  <FormHelperText
+                    component={Link}
+                    href="/forgot-password"
+                    sx={{ 
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                      color: 'primary.main'
+                    }}
+                  >
+                    Forgot password?
+                  </FormHelperText>
+                </Box>
+                
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  sx={{ mt: 2, mb: 2, py: 1.5 }}
+                  disabled={loading}
+                >
+                  {loading ? <CircularProgress size={24} /> : 'Sign In'}
+                </Button>
+                
+                <Divider sx={{ my: 3 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    OR
+                  </Typography>
+                </Divider>
+                
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    Don't have an account?
+                  </Typography>
+                  <Button
+                    component={RouterLink}
+                    to="/signup"
+                    variant="outlined"
+                    fullWidth
+                    sx={{ py: 1.5 }}
+                  >
+                    Create Account
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
+          </motion.div>
+        </Container>
       </Grid>
     </Grid>
   );
 };
 
 export default SignIn;
-
-// src/components/auth/SignUp.jsx
-import React, { useState } from 'react';
-import { 
-  Button, 
-  TextField, 
-  Typography, 
-  Paper, 
-  Box, 
-  Grid, 
-  Link,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem
-} from '@mui/material';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { setDoc, doc } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
-import { useNavigate } from 'react-router-dom';
-import RobotAvatar from '../avatar/RobotAvatar';
-
-const SignUp = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [messageStyle, setMessageStyle] = useState('friendly');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      return setError('Passwords do not match');
-    }
-
-    setError('');
-    setLoading(true);
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, { displayName: name });
-      
-      // Create user document in Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
-        name,
-        email,
-        preferences: {
-          messageStyle,
-          weekendMode: true,
-          sessionDuration: 25
-        },
-        createdAt: new Date().toISOString()
-      });
-      
-      navigate('/dashboard');
-    } catch (err) {
-      setError('Failed to create an account. ' + err.message);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Grid container component="main" sx={{ height: '100vh' }}>
-      <Grid
-        item
-        xs={false}
-        sm={4}
-        md={7}
-        sx={{
-          backgroundImage: 'url(https://source.unsplash.com/random?focus)',
-          backgroundRepeat: 'no-repeat',
-          backgroundColor: (t) => t.palette.primary.light,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
-      <Grid item xs={12} sm={8} md={5} component={Paper} elevation={6} square>
-        <Box
-          sx={{
-            my: 8,
-            mx: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <RobotAvatar mood="encouraging" size={120} />
-          <Typography component="h1" variant="h5" sx={{ mt: 2 }}>
-            Join FocusJuju
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Your AI accountability buddy is waiting to help you focus
-          </Typography>
-          {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
-          <Box component="form" noValidate onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="name"
-              label="Your Name"
-              name="name"
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="Email Address"
-              name="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Password"
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="confirmPassword"
-              label="Confirm Password"
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel id="message-style-label">Message Style</InputLabel>
-              <Select
-                labelId="message-style-label"
-                id="messageStyle"
-                value={messageStyle}
-                label="Message Style"
-                onChange={(e) => setMessageStyle(e.target.value)}
-              >
-                <MenuItem value="friendly">Friendly & Supportive</MenuItem>
-                <MenuItem value="serious">Professional & Serious</MenuItem>
-                <MenuItem value="funny">Humorous & Light</MenuItem>
-                <MenuItem value="motivational">Energetic & Motivational</MenuItem>
-              </Select>
-            </FormControl>
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
-            >
-              {loading ? 'Creating Account...' : 'Sign Up'}
-            </Button>
-            <Grid container>
-              <Grid item>
-                <Link href="/signin" variant="body2">
-                  {"Already have an account? Sign In"}
-                </Link>
-              </Grid>
-            </Grid>
-          </Box>
-        </Box>
-      </Grid>
-    </Grid>
-  );
-};
-
-export default SignUp;
-
-// src/context/AuthContext.jsx
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { auth, db } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-
-const AuthContext = createContext();
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      
-      if (user) {
-        // Get user profile data from Firestore
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserProfile(userDoc.data());
-          }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-        }
-      } else {
-        setUserProfile(null);
-      }
-      
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  const value = {
-    currentUser,
-    userProfile,
-    loading
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
-}

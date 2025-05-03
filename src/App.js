@@ -1,6 +1,6 @@
 // src/App.js
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import theme from './theme';
@@ -52,10 +52,9 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
-          <Suspense fallback={<Loading />}>
-            <Header />
-            <main style={{ minHeight: 'calc(100vh - 200px)' }}>
+        <Suspense fallback={<Loading />}>
+          <Header />
+          <main style={{ minHeight: 'calc(100vh - 200px)' }}>
               <Routes>
                 {/* Public and public-only routes */}
                 <Route path="/" element={<LandingPage />} />
@@ -113,10 +112,9 @@ function App() {
                 {/* 404 route */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </main>
-            <Footer />
-          </Suspense>
-        </Router>
+          </main>
+          <Footer />
+        </Suspense>
       </AuthProvider>
     </ThemeProvider>
   );
