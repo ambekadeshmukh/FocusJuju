@@ -138,11 +138,18 @@ const SignUp = () => {
       const success = await signUp(email, password, name, preferences);
       
       if (success) {
+        console.log("Sign up successful, redirecting to dashboard");
         navigate('/dashboard');
+      } else {
+        // If signUp returns false but doesn't set an error, set a generic one
+        if (!authError) {
+          setAuthError('Failed to create an account. Please try again.');
+        }
+        setLoading(false);
       }
     } catch (error) {
       console.error('Unexpected error during sign up:', error);
-    } finally {
+      setAuthError('An unexpected error occurred. Please try again.');
       setLoading(false);
     }
   };

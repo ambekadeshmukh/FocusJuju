@@ -1,22 +1,25 @@
-// src/components/LandingPage.jsx
-import React, { useEffect } from 'react';
+// Updated src/components/LandingPage.jsx with demo section
+import React, { useEffect, useState } from 'react';
 import { 
   Box, 
   Container, 
   Typography, 
   Button, 
-  Grid, 
+  Grid,
   Card, 
   CardContent, 
   Paper,
   Divider,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Tab,
+  Tabs
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { motion, useAnimation } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import RobotAvatar from './avatar/RobotAvatar';
+import BodyDoublingDemo from './demo/BodyDoublingDemo';
 
 // Icons
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -98,6 +101,7 @@ const LandingPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const [showDemo, setShowDemo] = useState(false);
   
   const features = [
     {
@@ -220,10 +224,10 @@ const LandingPage = () => {
                   <Button 
                     variant="outlined" 
                     size="large" 
-                    onClick={() => navigate('/signin')}
+                    onClick={() => setShowDemo(true)}
                     sx={{ px: 4, py: 1.5 }}
                   >
-                    Sign In
+                    Try Demo
                   </Button>
                 </Box>
               </MotionBox>
@@ -318,6 +322,38 @@ const LandingPage = () => {
           </Grid>
         </Container>
       </Box>
+      
+      {/* Demo Section */}
+      {showDemo && (
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Typography variant="h4" component="h2" fontWeight="bold">
+              Try It Now
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Experience how FocusJuju helps you stay focused with this interactive demo
+            </Typography>
+          </Box>
+          
+          <BodyDoublingDemo />
+          
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <Button 
+              variant="outlined" 
+              onClick={() => setShowDemo(false)}
+              sx={{ mr: 2 }}
+            >
+              Hide Demo
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={() => navigate('/signup')}
+            >
+              Sign Up for Full Experience
+            </Button>
+          </Box>
+        </Container>
+      )}
       
       {/* How It Works Section */}
       <Container maxWidth="lg" sx={{ py: 8 }}>
@@ -579,14 +615,16 @@ const LandingPage = () => {
                     Celebrates your progress with mini rewards
                   </Typography>
                 </Box>
-                <Button 
-                  variant="contained" 
-                  size="large" 
-                  sx={{ mt: 2 }}
-                  onClick={() => navigate('/signup')}
-                >
-                  Try Body Doubling
-                </Button>
+                {!showDemo && (
+                  <Button 
+                    variant="contained" 
+                    size="large" 
+                    sx={{ mt: 2 }}
+                    onClick={() => setShowDemo(true)}
+                  >
+                    Try Demo Now
+                  </Button>
+                )}
               </MotionBox>
             </Grid>
             <Grid item xs={12} md={6}>

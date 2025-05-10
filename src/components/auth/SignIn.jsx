@@ -14,7 +14,9 @@ import {
   Container,
   Divider,
   CircularProgress,
-  FormHelperText
+  FormHelperText,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -51,6 +53,15 @@ const SignIn = () => {
   // Get redirect URL from location state
   const from = location.state?.from?.pathname || '/dashboard';
   
+  // Check for remembered email on component mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+      setRememberMe(true);
+    }
+  }, []);
+  
   // Clear any previous auth errors when component mounts
   useEffect(() => {
     if (setAuthError) {
@@ -75,8 +86,6 @@ const SignIn = () => {
     
     if (!password) {
       errors.password = 'Password is required';
-    } else if (password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
     }
     
     setValidationErrors(errors);
@@ -107,10 +116,12 @@ const SignIn = () => {
         
         // Redirect to dashboard or previous page
         navigate(from, { replace: true });
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       console.error('Unexpected error during sign in:', error);
-    } finally {
+      setAuthError('An unexpected error occurred. Please try again.');
       setLoading(false);
     }
   };
@@ -191,7 +202,7 @@ const SignIn = () => {
                   label="Email Address"
                   name="email"
                   autoComplete="email"
-                  autoFocus
+                  autoFocus={!email} // Only autofocus if there's no remembered email
                   value={email}
                   onChange={(e) => handleInputChange(e, setEmail)}
                   error={!!validationErrors.email}
@@ -227,17 +238,26 @@ const SignIn = () => {
                 />
                 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', my: 2 }}>
-                  <FormHelperText
-                    component={Link}
-                    href="/forgot-password"
-                    sx={{ 
-                      textDecoration: 'none',
-                      cursor: 'pointer',
-                      color: 'primary.main'
-                    }}
+                  <FormControlLabel
+                    control={
+                      <Checkbox 
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        color="primary"
+                        size="small"
+                      />
+                    }
+                    label="Remember me"
+                  />
+                  
+                  <Link 
+                    component={RouterLink}
+                    to="/forgot-password"
+                    variant="body2"
+                    sx={{ textDecoration: 'none' }}
                   >
                     Forgot password?
-                  </FormHelperText>
+                  </Link>
                 </Box>
                 
                 <Button

@@ -17,6 +17,17 @@ const LandingPage = lazy(() => import('./components/LandingPage'));
 const NotFound = lazy(() => import('./components/common/NotFound'));
 const Loading = lazy(() => import('./components/common/Loading'));
 
+// Import new demo component
+const BodyDoublingDemo = lazy(() => import('./components/demo/BodyDoublingDemo'));
+
+// Import content pages for footer sections
+const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
+const AboutUs = lazy(() => import('./components/info/AboutUs'));
+const Contact = lazy(() => import('./components/info/Contact'));
+const Blog = lazy(() => import('./components/blog/Blog'));
+const ADHDResources = lazy(() => import('./components/resources/ADHDResources'));
+
 // Private Route wrapper
 const PrivateRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
@@ -75,6 +86,9 @@ function App() {
                   } 
                 />
                 
+                {/* Demo route */}
+                <Route path="/demo" element={<BodyDoublingDemo />} />
+                
                 {/* Protected routes */}
                 <Route 
                   path="/dashboard" 
@@ -108,6 +122,18 @@ function App() {
                     </PrivateRoute>
                   } 
                 />
+                
+                {/* Content page routes */}
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/about" element={<AboutUs />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/blog" element={<Blog />} />
+                <Route path="/resources" element={<ADHDResources />} />
+                
+                {/* Features pages */}
+                <Route path="/features/body-doubling" element={<BodyDoublingDemo />} />
+                <Route path="/features/micro-goals" element={<MicroGoalSetting />} />
                 
                 {/* 404 route */}
                 <Route path="*" element={<NotFound />} />
